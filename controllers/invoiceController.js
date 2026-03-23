@@ -2,9 +2,19 @@ const Invoice = require('../models/Invoice');
 
 exports.getInvoices = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
-    const total = await Invoice.countDocuments({ user: req.userId });
-    const invoices = await Invoice.find({ user: req.userId })
+    const { page = 1, limit = 10, search = '' } = req.query;
+    
+    const matchQuery = { user: req.userId };
+    if (search) {
+      matchQuery.$or = [
+        { invoiceId: { $regex: search, $options: 'i' } },
+        { customerName: { $regex: search, $options: 'i' } },
+        { productName: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const total = await Invoice.countDocuments(matchQuery);
+    const invoices = await Invoice.find(matchQuery)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
