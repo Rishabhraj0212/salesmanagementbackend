@@ -9,7 +9,15 @@ const generateToken = (userId) => {
 
 exports.signup = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, confirmPassword } = req.body;
+    let { firstName, lastName, name, email, password, confirmPassword } = req.body;
+    
+    // Parse name field if firstName is not provided
+    if (!firstName && name) {
+      const nameParts = name.trim().split(' ');
+      firstName = nameParts[0];
+      lastName = nameParts.slice(1).join(' ') || '';
+    }
+    
     if (!firstName || !email || !password) {
       return res.status(400).json({ message: 'First name, email and password are required' });
     }
