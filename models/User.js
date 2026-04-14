@@ -6,8 +6,8 @@ const userSchema = new mongoose.Schema({
   lastName: { type: String, default: '', trim: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true, minlength: 6 },
-  resetToken: { type: String, default: null },
-  resetTokenExpiry: { type: Date, default: null },
+  resetOtp: { type: String, default: null },
+  resetOtpExpiry: { type: Date, default: null },
   cardLayout: { type: [String], default: ['revenue', 'sold', 'inStock'] },
 }, { timestamps: true });
 

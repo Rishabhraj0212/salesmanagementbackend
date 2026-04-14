@@ -71,21 +71,23 @@ exports.forgotPassword = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'No account found with this email' });
     }
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = Date.now() + 3600000; // 1 hour
+    
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.resetOtp = otp;
+    user.resetOtpExpiry = Date.now() + 600000; // 10 minutes
     await user.save();
 
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
     const message = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-        <h2 style="color: #5570F1; text-align: center;">Password Reset Request</h2>
+        <h2 style="color: #5570F1; text-align: center;">Password Reset OTP</h2>
         <p>Hello ${user.firstName},</p>
-        <p>You requested to reset your password for your Inventory Management account. Click the button below to proceed:</p>
+        <p>You requested to reset your password for your Inventory Management account. Use the OTP below to proceed:</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetUrl}" style="background-color: #5570F1; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password</a>
+          <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #5570F1; background-color: #f0f0f0; padding: 20px; border-radius: 5px;">${otp}</div>
         </div>
-        <p>If you didn't request this, please ignore this email. This link will expire in 1 hour.</p>
+        <p style="color: #666;">This OTP will expire in 10 minutes.</p>
+        <p>If you didn't request this, please ignore this email.</p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
         <p style="font-size: 12px; color: #888; text-align: center;">Inventory Management System &copy; 2024</p>
       </div>
@@ -94,13 +96,13 @@ exports.forgotPassword = async (req, res) => {
     try {
       await sendEmail({
         email: user.email,
-        subject: 'Password Reset Request',
+        subject: 'Password Reset OTP',
         message,
       });
-      res.json({ message: 'Password reset link sent to your email' });
+      res.json({ message: 'OTP sent to your email. It will expire in 10 minutes.' });
     } catch (err) {
-      user.resetToken = null;
-      user.resetTokenExpiry = null;
+      user.resetOtp = null;
+      user.resetOtpExpiry = null;
       await user.save();
       return res.status(500).json({ message: 'Email could not be sent', error: err.message });
     }
@@ -111,21 +113,30 @@ exports.forgotPassword = async (req, res) => {
 
 exports.resetPassword = async (req, res) => {
   try {
-    const { token, password, confirmPassword } = req.body;
+    const { email, otp, password, confirmPassword } = req.body;
+    
+    if (!email || !otp) {
+      return res.status(400).json({ message: 'Email and OTP are required' });
+    }
     if (password !== confirmPassword) {
       return res.status(400).json({ message: 'Passwords do not match' });
     }
+    
     const user = await User.findOne({
-      resetToken: token,
-      resetTokenExpiry: { $gt: Date.now() }
+      email,
+      resetOtp: otp,
+      resetOtpExpiry: { $gt: Date.now() }
     });
+    
     if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired reset token' });
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
+    
     user.password = password;
-    user.resetToken = null;
-    user.resetTokenExpiry = null;
+    user.resetOtp = null;
+    user.resetOtpExpiry = null;
     await user.save();
+    
     res.json({ message: 'Password reset successful' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
