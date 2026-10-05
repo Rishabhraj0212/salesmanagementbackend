@@ -5,6 +5,15 @@ const fs = require('fs');
 const csv = require('csv-parser');
 const path = require('path');
 
+const normalizeUnit = (unit) => (unit || '').toString().trim().toLowerCase();
+
+const sendProductError = (res, error) => {
+  if (error.name === 'ValidationError' || error.code === 11000) {
+    return res.status(400).json({ message: error.message });
+  }
+  return res.status(500).json({ message: 'Server error', error: error.message });
+};
+
 exports.getProducts = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '' } = req.query;
@@ -47,7 +56,7 @@ exports.createProduct = async (req, res) => {
     const product = new Product({
       productImage, productName, productId, category,
       price: parseFloat(price), quantity: parseInt(quantity),
-      unit, expiryDate: expiryDate || null,
+      unit: normalizeUnit(unit), expiryDate: expiryDate || null,
       thresholdValue: parseInt(thresholdValue),
       user: req.userId
     });
@@ -66,7 +75,7 @@ exports.createProduct = async (req, res) => {
 
     res.status(201).json({ message: 'Product created', product });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    sendProductError(res, error);
   }
 };
 
@@ -75,12 +84,13 @@ exports.updateProduct = async (req, res) => {
     const product = await Product.findOne({ _id: req.params.id, user: req.userId });
     if (!product) return res.status(404).json({ message: 'Product not found' });
     const updates = req.body;
+    if (updates.unit) updates.unit = normalizeUnit(updates.unit);
     if (req.file) updates.productImage = `/uploads/${req.file.filename}`;
     Object.keys(updates).forEach(key => { product[key] = updates[key]; });
     await product.save();
     res.json({ message: 'Product updated', product });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    sendProductError(res, error);
   }
 };
 
@@ -121,7 +131,7 @@ exports.csvUpload = async (req, res) => {
           category: row.category,
           price: parseFloat(row.price) || 0,
           quantity: parseInt(row.quantity) || 0,
-          unit: row.unit || 'pcs',
+          unit: normalizeUnit(row.unit || 'pcs'),
           expiryDate: row.expiryDate || row.expiry_date || null,
           thresholdValue: parseInt(row.thresholdValue || row.threshold_value || row.threshold) || 5,
           user: req.userId
